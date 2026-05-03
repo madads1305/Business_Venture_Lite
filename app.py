@@ -1,19 +1,16 @@
 import streamlit as st
+import pandas as pd
+# Use the new explicit import style
 from google import genai
 
 # --- 1. SECURE CONFIGURATION ---
-# This looks for the key in Streamlit's private dashboard, NOT in this file.
 try:
-    # Try to get the key from Streamlit Cloud Secrets
     API_KEY = st.secrets["GEMINI_API_KEY"]
-except:
-    # If running locally, you'll enter it in a sidebar or local secrets file
-    API_KEY = st.sidebar.text_input("Enter Gemini API Key", type="password")
-
-if not API_KEY:
-    st.warning("Please provide an API Key to continue.")
+except Exception:
+    st.error("Missing Gemini API Key in Streamlit Secrets.")
     st.stop()
 
+# Initialize the 2026 Client
 client = genai.Client(api_key=API_KEY)
 MODEL_ID = "gemini-2.5-flash"
 
