@@ -49,12 +49,31 @@ elif st.session_state.step == "ASKING":
     current_q_idx = len(st.session_state.answers)
     st.progress((current_q_idx) / 20)
     
+    # --- THIS IS THE PART YOU ARE UPDATING ---
     if len(st.session_state.questions) <= current_q_idx:
-        with st.spinner("Agent is analyzing context..."):
+        with st.spinner("Venture Agent is thinking..."):
             history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-            prompt = f"Business: {st.session_state.user_idea}\nHistory: {history}\n\nAsk the next critical business plan question."
+            
+            # This detailed prompt fixes the 'over-explaining' seen in the screenshot
+            prompt = f"""
+            You are a fun, encouraging 'Venture Architect' game host. 
+            Help the user explore: {st.session_state.user_idea}.
+            
+            PREVIOUS CONTEXT: {history}
+            
+            RULES:
+            1. ASK ONLY ONE SIMPLE QUESTION. 
+            2. NO technical jargon or heavy requirements (like battery range or bylaws).
+            3. Keep the question to one sentence. 
+            4. Focus on 'Human' elements (customers, vibe, branding).
+            5. DO NOT explain why you are asking. Just ask.
+            
+            Ask Question {current_q_idx + 1}:
+            """
+            
             response = client.models.generate_content(model=MODEL_ID, contents=prompt)
             st.session_state.questions.append(response.text)
+    # --- END OF UPDATED SECTION ---
 
     st.info(f"**Question {current_q_idx + 1}**")
     st.write(st.session_state.questions[current_q_idx])
