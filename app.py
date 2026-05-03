@@ -2,6 +2,18 @@ import streamlit as st
 import pandas as pd
 from google import genai
 
+# ---  GLOBAL CLIENT (The Fix) ---
+# This ensures the connection doesn't "die" between questions
+if "genai_client" not in st.session_state:
+    try:
+        API_KEY = st.secrets["GEMINI_API_KEY"]
+        st.session_state.genai_client = genai.Client(api_key=API_KEY)
+    except Exception as e:
+        st.error("Authentication Error. Check your Streamlit Secrets.")
+        st.stop()
+
+client = st.session_state.genai_client
+MODEL_ID = "gemini-2.5-flash"
 # --- 1. SESSION STATE PERSISTENCE (Mobile & Logic Stability) ---
 if 'user_idea' not in st.session_state:
     st.session_state.user_idea = ""
