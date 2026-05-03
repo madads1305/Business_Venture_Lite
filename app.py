@@ -1,14 +1,18 @@
 import streamlit as st
 from google import genai
-import pandas as pd
 
-# --- 1. THE BRAIN (2026 Standards) ---
-# When you deploy to Streamlit, you will paste your key into their 'Secrets' dashboard.
+# --- 1. SECURE CONFIGURATION ---
+# This looks for the key in Streamlit's private dashboard, NOT in this file.
 try:
+    # Try to get the key from Streamlit Cloud Secrets
     API_KEY = st.secrets["GEMINI_API_KEY"]
 except:
-    # Fallback for your local testing only
-    API_KEY = "AIzaSyDaiObuUlEVhpSWehCDwfBhAfGQWHoMQas" 
+    # If running locally, you'll enter it in a sidebar or local secrets file
+    API_KEY = st.sidebar.text_input("Enter Gemini API Key", type="password")
+
+if not API_KEY:
+    st.warning("Please provide an API Key to continue.")
+    st.stop()
 
 client = genai.Client(api_key=API_KEY)
 MODEL_ID = "gemini-2.5-flash"
