@@ -3,6 +3,48 @@ import pandas as pd
 # Use the new explicit import style
 from google import genai
 
+# --- THE ZHUZH: STYLING & SIDEBAR ---
+st.set_page_config(page_title="Venture Architect", page_icon="🚀", layout="wide")
+
+# Custom CSS for a sleek 'Dark Mode' or 'Professional Blue' feel
+st.markdown("""
+    <style>
+    .stApp {
+        background: linear-gradient(180deg, #f0f2f6 0%, #ffffff 100%);
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 20px;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #0056b3;
+        transform: scale(1.02);
+    }
+    .question-card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Sidebar for Professional Context (Portfolios love this)
+with st.sidebar:
+    st.title("👨‍💻 Architect Profile")
+    st.markdown(f"**Lead Consultant:** {st.secrets.get('USER_NAME', 'Adi')}")
+    st.markdown("---")
+    st.write("This AI-driven tool uses **Gemini 2.5 Flash** to stress-test business models through 20 strategic questions.")
+    if st.button("Reset Game"):
+        st.session_state.clear()
+        st.rerun()
+
 # --- 1. SECURE CONFIGURATION ---
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
@@ -95,6 +137,12 @@ elif st.session_state.step == "ASKING":
 elif st.session_state.step == "REPORT":
     st.header("📋 Venture Architecture Report")
     
+    # Visual Zhuzh: Confidence Meter
+    # (Assuming the AI gives you a score, let's show a placeholder for now)
+    score = 85 # You can later parse this from the AI response
+    st.columns(3)[1].metric("Venture Readiness Score", f"{score}%", "+5% vs average")
+    
+    # ... [Keep your charts and report generation here] ...
     # Quick Dashboard Visual
     chart_data = pd.DataFrame({
         "Year": ["Y1", "Y2", "Y3", "Y4", "Y5"],
