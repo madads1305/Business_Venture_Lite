@@ -78,15 +78,20 @@ elif st.session_state.step == "ASKING":
     st.info(f"**Question {current_q_idx + 1}**")
     st.write(st.session_state.questions[current_q_idx])
     
-    user_ans = st.text_input("Response:", key=f"input_{current_q_idx}")
+       # FIX: We use a key so the text stays in the box without 'submitting' early
+    user_ans = st.text_input("Your Response:", key=f"input_{current_q_idx}")
     
-    if st.button("Next →"):
+    # The button now handles the logic entirely
+    if st.button("Submit Response →"):
         if user_ans:
             st.session_state.answers.append(user_ans)
             if len(st.session_state.answers) >= 20:
                 st.session_state.step = "REPORT"
             st.rerun()
-
+        else:
+            st.warning("Please type something before moving on!")
+   
+   
 elif st.session_state.step == "REPORT":
     st.header("📋 Venture Architecture Report")
     
