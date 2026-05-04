@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from google import genai
-import io
+import json
 
 # --- 1. SESSION STATE PERSISTENCE ---
 if 'user_idea' not in st.session_state: st.session_state.user_idea = ""
@@ -21,36 +21,40 @@ if "genai_client" not in st.session_state:
 client = st.session_state.genai_client
 MODEL_ID = "gemini-2.5-flash"
 
-# --- 3. THE "ZHUZH" (VISUAL STYLING) ---
+# --- 3. UI STYLING ---
 st.set_page_config(page_title="Venture Architect", page_icon="🚀", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
-    .main-header { font-size: 2.5rem; color: #1e3a8a; font-weight: 800; margin-bottom: 0; }
-    .stButton>button { width: 100%; border-radius: 25px; height: 3.5em; background-color: #2563eb; color: white; font-weight: bold; transition: 0.3s; }
-    .stButton>button:hover { background-color: #1d4ed8; transform: translateY(-2px); }
-    .metric-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
+    .main-header { font-size: 2.5rem; color: #1e3a8a; font-weight: 800; margin-bottom: 5px; }
+    .stButton>button { width: 100%; border-radius: 25px; height: 3.5em; background-color: #2563eb; color: white; font-weight: bold; }
+    .metric-card { 
+        background: white; padding: 15px; border-radius: 12px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #2563eb;
+    }
+    .metric-value { font-size: 1.5rem; font-weight: bold; color: #1e3a8a; }
+    .metric-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
     .question-box { background: white; padding: 30px; border-radius: 20px; border-left: 8px solid #2563eb; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. APP LOGIC ---
+# --- 4. APP FLOW ---
 with st.sidebar:
     st.markdown("### 👨‍💻 Architect Profile")
     st.write(f"**Lead:** {st.secrets.get('USER_NAME', 'Adi')}")
-    st.markdown("---")
+    st.write("---")
     if st.button("🔄 Reset Architecture"):
         st.session_state.clear()
         st.rerun()
 
 st.markdown("<h1 class='main-header'>🧠 Venture Architect AI</h1>", unsafe_allow_html=True)
-st.caption("Strategic Planning Agent v1.6 | High-Fidelity Business Modeling")
+st.caption("Strategic Planning Agent v1.7 | High-Fidelity Business Modeling")
 
 # STEP: START
 if st.session_state.step == "START":
     st.subheader("Describe the Vision")
-    idea = st.text_area("", height=150, placeholder="Describe your business idea in detail...")
+    idea = st.text_area("", height=150, placeholder="Describe your business idea (e.g., Arcade & Speakeasy in Ottawa)...")
     if st.button("Begin Architectural Scan"):
         if idea:
             st.session_state.user_idea = idea
@@ -63,26 +67,13 @@ elif st.session_state.step == "ASKING":
     st.progress(current_idx / 20, text=f"Context Maturity: {current_idx}/20")
     
     if len(st.session_state.questions) <= current_idx:
-        with st.spinner("Refining strategic path..."):
+        with st.spinner("Architect is refining strategic path..."):
             history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-            
-            # THE REPEAT-PREVENTION PROMPT
-            prompt = f"""
-            You are a 'Venture Architect'. Current Idea: {st.session_state.user_idea}.
-            
-            PREVIOUS QUESTIONS ASKED: {st.session_state.questions}
-            PREVIOUS ANSWERS: {st.session_state.answers}
-            
-            RULES:
-            1. ASK Question {current_idx + 1}. 
-            2. DO NOT repeat topics already covered. If you know the 'where', ask about the 'how' or 'how much'.
-            3. Target: Unit Economics, Competitive Moat, or Operational Scale.
-            4. ONE simple, bold sentence.
-            """
+            prompt = f"Idea: {st.session_state.user_idea}. History: {history}. Ask Question {current_idx+1}. FOCUS on Business Requirements/Ambition only. No feelings. ONE sentence. DO NOT repeat topics."
             response = client.models.generate_content(model=MODEL_ID, contents=prompt)
-            st.session_state.questions.append(response.text if response.text else "What is your primary revenue stream?")
+            st.session_state.questions.append(response.text if response.text else "What is your Year 1 revenue goal?")
 
-    st.markdown(f"<div class='question-box'><small style='color:#2563eb; font-weight:bold;'>STRATEGIC INQUIRY {current_idx + 1}</small><br><p style='font-size:1.4em; font-weight:500;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='question-box'><small style='color:#2563eb; font-weight:bold;'>STRATEGIC INQUIRY {current_idx + 1}</small><br><p style='font-size:1.4em;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
     st.write("")
     user_ans = st.text_input("Your Response:", key=f"ans_{current_idx}")
 
@@ -93,69 +84,76 @@ elif st.session_state.step == "ASKING":
                 st.session_state.answers.append(user_ans)
                 if len(st.session_state.answers) >= 20: st.session_state.step = "REPORT"
                 st.rerun()
-    
-    if current_idx >= 7:
-        with c2:
+    with c2:
+        if current_idx >= 7:
             if st.button("🚀 Fast-Track Synthesis"):
                 st.session_state.step = "REPORT"
                 st.rerun()
 
-# STEP: REPORT (The Visual Dashboard)
+# STEP: REPORT
 elif st.session_state.step == "REPORT":
-    st.success("🏗️ Architectural Synthesis Complete")
+    st.warning("⚠️ **DISCLAIMER:** This report is an indicative model based on user inputs. Not a final financial audit.")
     
-    # Dashboard Header
+    with st.spinner("Synthesizing Executive Dashboard..."):
+        full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
+        
+        # We ask the AI to provide a JSON summary first for the tiles, then the full report
+        summary_prompt = f"""
+        Analyze this business idea: {st.session_state.user_idea}
+        Data: {full_context}
+        
+        Provide a JSON object with these exact keys: 
+        "capex" (string, e.g. '$200k'), 
+        "opex" (string, e.g. '$15k/mo'), 
+        "breakeven" (string, e.g. '18 Mos'), 
+        "viability" (string 0-100, e.g. '85%'), 
+        "risk" (string, e.g. 'Medium')
+        """
+        summary_res = client.models.generate_content(model=MODEL_ID, contents=summary_prompt)
+        
+        # Clean the JSON string from AI response
+        json_str = summary_res.text.replace('```json', '').replace('```', '').strip()
+        try:
+            metrics = json.loads(json_str)
+        except:
+            metrics = {"capex": "N/A", "opex": "N/A", "breakeven": "N/A", "viability": "N/A", "risk": "N/A"}
+
+    # 1. EXECUTIVE TILES (The Dashboard)
     q_count = len(st.session_state.answers)
     acc_score = int((q_count / 20) * 100)
-    
-    col1, col2, col3 = st.columns(3)
-    with col1: st.markdown(f"<div class='metric-card'><small>Accuracy Score</small><h2>{acc_score}%</h2></div>", unsafe_allow_html=True)
-    with col2: st.markdown(f"<div class='metric-card'><small>Model Type</small><h2>Hybrid Pro</h2></div>", unsafe_allow_html=True)
-    with col3: st.markdown(f"<div class='metric-card'><small>Breakeven</small><h2>~15 Mos</h2></div>", unsafe_allow_html=True)
+
+    t1, t2, t3, t4, t5, t6 = st.columns(6)
+    with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{acc_score}%</div></div>", unsafe_allow_html=True)
+    with t2: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. CAPEX</div><div class='metric-value'>{metrics.get('capex')}</div></div>", unsafe_allow_html=True)
+    with t3: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. OPEX</div><div class='metric-value'>{metrics.get('opex')}</div></div>", unsafe_allow_html=True)
+    with t4: st.markdown(f"<div class='metric-card'><div class='metric-label'>Breakeven</div><div class='metric-value'>{metrics.get('breakeven')}</div></div>", unsafe_allow_html=True)
+    with t5: st.markdown(f"<div class='metric-card'><div class='metric-label'>Viability</div><div class='metric-value'>{metrics.get('viability')}</div></div>", unsafe_allow_html=True)
+    with t6: st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Level</div><div class='metric-value'>{metrics.get('risk')}</div></div>", unsafe_allow_html=True)
 
     st.write("---")
     
-    # Financial Storytelling
-    st.subheader("📈 Financial Trajectory")
+    # 2. FINANCIAL CHART
+    st.subheader("📈 Projected Growth Trajectory")
     chart_data = pd.DataFrame({
         "Month": [0, 6, 12, 18, 24],
-        "Total Investment ($k)": [180, 210, 230, 240, 250],
-        "Gross Revenue ($k)": [0, 45, 140, 310, 520]
+        "Costs ($k)": [180, 210, 240, 260, 280],
+        "Revenue ($k)": [0, 50, 150, 320, 580]
     }).set_index("Month")
     st.line_chart(chart_data)
 
-    # Detailed Synthesis Sections
-    with st.spinner("Architect is finalizing the report..."):
-        full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-        
-        report_prompt = f"""
-        Generate a 'Business Plan Lite' for {st.session_state.user_idea}.
-        Use the following inputs: {full_context}
-        
-        STRUCTURE:
-        1. THE VISION & STORY: Narrative summary.
-        2. OPERATIONAL BLUEPRINT: Space, Tech, and Human Capital.
-        3. UNIT ECONOMICS: Breakdown of CAPEX and OPEX.
-        4. BULL vs BEAR SCENARIOS: Profitability levers.
-        5. ARCHITECT'S NEXT STEPS: What is missing for 100% accuracy?
-        """
-        response = client.models.generate_content(model=MODEL_ID, contents=report_prompt)
-        
-        # Display with Expanders for scannability
-        st.markdown(response.text)
+    # 3. FULL REPORT
+    with st.spinner("Finalizing Full Report..."):
+        report_prompt = f"Generate a detailed Strategic Synthesis for: {st.session_state.user_idea}. Data: {full_context}. Sections: The Story, Requirements, Cost Model, Bull/Bear Scenarios, Accuracy Gaps."
+        report_res = client.models.generate_content(model=MODEL_ID, contents=report_prompt)
+        st.markdown(report_res.text)
 
-    st.write("---")
-    
-    # DOWNLOADS: Report + Raw Data
-    st.subheader("📥 Export Documents")
-    d1, d2 = st.columns(2)
-    with d1:
-        st.download_button("📩 Download Executive Summary", response.text, file_name="Business_Plan_Lite.txt")
-    with d2:
-        # Create Question/Answer Log
+    # 4. EXPORTS
+    c1, c2 = st.columns(2)
+    with c1: st.download_button("📩 Download Report", report_res.text, file_name="Venture_Report.txt")
+    with c2:
         qa_log = "\n".join([f"Q: {q}\nA: {a}\n---" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-        st.download_button("📄 Download Q&A Annexure", qa_log, file_name="Consultancy_Session_Log.txt")
+        st.download_button("📄 Download Annexure (Q&A)", qa_log, file_name="Session_Log.txt")
 
-    if st.button("Start New Architectural Scan"):
+    if st.button("New Scan"):
         st.session_state.clear()
         st.rerun()
