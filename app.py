@@ -126,7 +126,7 @@ elif st.session_state.step == "ASKING":
 
 # STEP: REPORT
 elif st.session_state.step == "REPORT":
-    st.warning("⚠️ **DISCLAIMER:** This indicative model is based solely on user inputs.")
+    st.warning("⚠️ **DISCLAIMER:** This indicative model is based solely on user inputs. [cite: 124]")
     
     # 1. GENERATE DASHBOARD DATA
     with st.spinner("Calculating Indicative Metrics..."):
@@ -156,4 +156,32 @@ elif st.session_state.step == "REPORT":
 
     # 2. DISPLAY DASHBOARD TILES
     t1, t2, t3, t4, t5, t6 = st.columns(6)
-    with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{int((len(st.session_state.answers)/
+    with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{int((len(st.session_state.answers)/20)*100)}%</div></div>", unsafe_allow_html=True)
+    with t2: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. CAPEX</div><div class='metric-value'>{metrics.get('capex')}</div></div>", unsafe_allow_html=True)
+    with t3: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. OPEX</div><div class='metric-value'>{metrics.get('opex')}</div></div>", unsafe_allow_html=True)
+    with t4: st.markdown(f"<div class='metric-card'><div class='metric-label'>Breakeven</div><div class='metric-value'>{metrics.get('breakeven')}</div></div>", unsafe_allow_html=True)
+    with t5: st.markdown(f"<div class='metric-card'><div class='metric-label'>Viability</div><div class='metric-value'>{metrics.get('viability')}</div></div>", unsafe_allow_html=True)
+    with t6: st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Level</div><div class='metric-value'>{metrics.get('risk')}</div></div>", unsafe_allow_html=True)
+
+    st.write("---")
+    
+    # 3. THE BUSINESS STORY & MODEL
+    with st.spinner("Synthesizing Final Report..."):
+        report_prompt = f"""
+        Generate a 'Business Plan Lite' for {st.session_state.user_idea}.
+        Use the following inputs: {full_context}
+        
+        STRUCTURE:
+        1. THE VISION: A summary of the business story. [cite: 81]
+        2. OPERATIONAL REQUIREMENTS: What is needed to launch? [cite: 91]
+        3. FINANCIAL MODEL: CAPEX/OPEX breakdown. [cite: 124, 175]
+        4. BULL vs BEAR: Best/Worst case scenarios. [cite: 221]
+        5. ACCURACY GAPS: What is missing for a 100% accurate plan? 
+        """
+        response = client.models.generate_content(model=MODEL_ID, contents=report_prompt)
+        st.markdown(response.text)
+        st.download_button("📩 Download Professional Report", response.text, file_name="Venture_Report.txt")
+
+    if st.button("Start New Architectural Scan"):
+        st.session_state.clear()
+        st.rerun()
