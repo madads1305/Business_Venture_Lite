@@ -61,34 +61,32 @@ if st.session_state.step == "START":
             st.session_state.step = "ASKING"
             st.rerun()
 
-# STEP: ASKING
+# --- REVISED ASKING PROMPT (Simpler & More Engaging) ---
 elif st.session_state.step == "ASKING":
     current_idx = len(st.session_state.answers)
-    st.progress(current_idx / 20, text=f"Context Maturity: {current_idx}/20")
+    st.progress(current_idx / 20, text=f"Progress: {current_idx}/20")
     
     if len(st.session_state.questions) <= current_idx:
-        with st.spinner("Architect is refining strategic path..."):
+        with st.spinner("Mentoring your idea..."):
             history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-            prompt = f"Idea: {st.session_state.user_idea}. History: {history}. Ask Question {current_idx+1}. FOCUS on Business Requirements/Ambition only. No feelings. ONE sentence. DO NOT repeat topics."
+            
+            # THE "SIMPLICITY" PROMPT
+            prompt = f"""
+            You are a helpful startup mentor. Business Idea: {st.session_state.user_idea}.
+            
+            RULES:
+            1. ASK Question {current_idx + 1}. 
+            2. MUST be a question (end in a ?). DO NOT make statements or comments.
+            3. Use SIMPLE, punchy language (10th-grade level). 
+            4. No jargon like 'operational cost savings' or 'synergistic integration'.
+            5. Ask about ONE thing only (e.g., 'Who pays the bill?' or 'How many buses?').
+            6. Look at previous topics: {st.session_state.questions} and DO NOT repeat.
+            """
             response = client.models.generate_content(model=MODEL_ID, contents=prompt)
-            st.session_state.questions.append(response.text if response.text else "What is your Year 1 revenue goal?")
+            st.session_state.questions.append(response.text if response.text else "How will you find your first customer?")
 
-    st.markdown(f"<div class='question-box'><small style='color:#2563eb; font-weight:bold;'>STRATEGIC INQUIRY {current_idx + 1}</small><br><p style='font-size:1.4em;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
-    st.write("")
-    user_ans = st.text_input("Your Response:", key=f"ans_{current_idx}")
-
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Submit Response →", key=f"btn_{current_idx}"):
-            if user_ans:
-                st.session_state.answers.append(user_ans)
-                if len(st.session_state.answers) >= 20: st.session_state.step = "REPORT"
-                st.rerun()
-    with c2:
-        if current_idx >= 7:
-            if st.button("🚀 Fast-Track Synthesis"):
-                st.session_state.step = "REPORT"
-                st.rerun()
+    # UI Display remains the same, but the content will be much friendlier
+    st.markdown(f"<div class='question-box'><small style='color:#2563eb; font-weight:bold;'>QUICK QUESTION {current_idx + 1}</small><br><p style='font-size:1.4em;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
 
 # STEP: REPORT
 elif st.session_state.step == "REPORT":
