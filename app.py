@@ -129,30 +129,27 @@ elif st.session_state.step == "REPORT":
     st.warning("⚠️ **DISCLAIMER:** This indicative model is based solely on user inputs. [cite: 124]")
     
     # 1. GENERATE DASHBOARD DATA
-    with st.spinner("Calculating Indicative Metrics..."):
-        full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-        
-        summary_prompt = f"""
-        Analyze: {st.session_state.user_idea}. Data: {full_context}. 
-        Provide a JSON object with these keys. VALUES MUST BE 1-3 WORDS MAX:
-        "capex": (e.g., "$150k - $200k"),
-        "opex": (e.g., "$10k/mo"),
-        "breakeven": (e.g., "14 Months"),
-        "viability": (e.g., "High - 85%"),
-        "risk": (e.g., "Medium")
-        """
-        
-        try:
-            summary_res = client.models.generate_content(model=MODEL_ID, contents=summary_prompt)
-            json_str = summary_res.text.replace('```json', '').replace('```', '').strip()
-            metrics = json.loads(json_str)
-            
-            # Clean/Truncate if AI gets chatty
-            for key in metrics:
-                if len(str(metrics[key])) > 25:
-                    metrics[key] = str(metrics[key])[:22] + "..."
-        except:
-            metrics = {"capex": "N/A", "opex": "N/A", "breakeven": "N/A", "viability": "N/A", "risk": "N/A"}
+   # --- FORCED ESTIMATION LOGIC ---
+with st.spinner("Calculating Indicative Metrics..."):
+    full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
+    
+    # We now tell the AI: "DO NOT say 'Not estimated'. Give a range."
+    summary_prompt = f"""
+    Analyze: {st.session_state.user_idea}. 
+    Data: {full_context}. 
+    
+    TASK: Provide a JSON object. You MUST provide a best-guess estimate for every key. 
+    DO NOT use phrases like 'Not estimated' or 'Unknown'.
+    
+    VALUES MUST BE 1-3 WORDS:
+    "capex": (e.g., "$100k - $150k")
+    "opex": (e.g., "$5k - $8k/mo")
+    "breakeven": (e.g., "12-18 Mos")
+    "viability": (e.g., "Moderate")
+    "risk": (e.g., "Market/Policy")
+    """
+    
+    # ... [Keep your existing json.loads and cleaning logic here] ...
 
     # 2. DISPLAY DASHBOARD TILES
     t1, t2, t3, t4, t5, t6 = st.columns(6)
