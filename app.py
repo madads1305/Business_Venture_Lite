@@ -49,44 +49,76 @@ with st.sidebar:
         st.rerun()
 
 st.markdown("<h1 class='main-header'>🧠 Venture Architect AI</h1>", unsafe_allow_html=True)
-st.caption("Strategic Planning Agent v1.7 | High-Fidelity Business Modeling")
+st.caption("Strategic Planning Agent v1.8 | High-Fidelity Business Modeling")
 
 # STEP: START
 if st.session_state.step == "START":
     st.subheader("Describe the Vision")
-    idea = st.text_area("", height=150, placeholder="Describe your business idea (e.g., Arcade & Speakeasy in Ottawa)...")
+    idea = st.text_area("", height=150, placeholder="Describe your business idea in detail...")
     if st.button("Begin Architectural Scan"):
         if idea:
             st.session_state.user_idea = idea
             st.session_state.step = "ASKING"
             st.rerun()
 
-# --- REVISED ASKING PROMPT (Simpler & More Engaging) ---
+# STEP: ASKING
 elif st.session_state.step == "ASKING":
     current_idx = len(st.session_state.answers)
     st.progress(current_idx / 20, text=f"Progress: {current_idx}/20")
     
+    # Logic Part: Generate the question if we don't have one for this index
     if len(st.session_state.questions) <= current_idx:
-        with st.spinner("Mentoring your idea..."):
-            history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-            
-            # THE "SIMPLICITY" PROMPT
-            prompt = f"""
-            You are a helpful startup mentor. Business Idea: {st.session_state.user_idea}.
-            
-            RULES:
-            1. ASK Question {current_idx + 1}. 
-            2. MUST be a question (end in a ?). DO NOT make statements or comments.
-            3. Use SIMPLE, punchy language (10th-grade level). 
-            4. No jargon like 'operational cost savings' or 'synergistic integration'.
-            5. Ask about ONE thing only (e.g., 'Who pays the bill?' or 'How many buses?').
-            6. Look at previous topics: {st.session_state.questions} and DO NOT repeat.
-            """
-            response = client.models.generate_content(model=MODEL_ID, contents=prompt)
-            st.session_state.questions.append(response.text if response.text else "How will you find your first customer?")
+        with st.spinner("Mentor is thinking..."):
+            try:
+                history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
+                
+                # REVISED PROMPT: Simple English + No Jargon + Question Only
+                prompt = f"""
+                You are a friendly startup mentor helping a user with their idea: {st.session_state.user_idea}.
+                HISTORY: {history}
+                
+                RULES:
+                1. Ask ONE simple, short question.
+                2. MUST end in a question mark (?). No statements or lectures.
+                3. Use plain English (10th-grade level). 
+                4. Avoid jargon (instead of 'CAPEX', ask 'How much money do you need to start?').
+                5. Check the HISTORY and do not ask about something already discussed.
+                """
+                response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+                st.session_state.questions.append(response.text if response.text else "How will you find your first customer?")
+                st.rerun()
+            except Exception:
+                st.error("Connection flickered. Please click Retry.")
+                if st.button("Retry"): st.rerun()
+                st.stop()
 
-    # UI Display remains the same, but the content will be much friendlier
-    st.markdown(f"<div class='question-box'><small style='color:#2563eb; font-weight:bold;'>QUICK QUESTION {current_idx + 1}</small><br><p style='font-size:1.4em;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
+    # UI Part: Always display the current question and input box
+    st.markdown(f"""
+        <div class='question-box'>
+            <small style='color:#2563eb; font-weight:bold;'>QUICK QUESTION {current_idx + 1}</small>
+            <p style='font-size:1.4em; margin-top:10px;'>{st.session_state.questions[current_idx]}</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("") 
+    user_ans = st.text_input("Your Answer:", key=f"ans_{current_idx}", placeholder="Type your answer here...")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Next Question →", key=f"btn_{current_idx}"):
+            if user_ans:
+                st.session_state.answers.append(user_ans)
+                if len(st.session_state.answers) >= 20: 
+                    st.session_state.step = "REPORT"
+                st.rerun()
+            else:
+                st.warning("Please type a response first!")
+    
+    with c2:
+        if current_idx >= 7:
+            if st.button("🚀 Fast-Track Synthesis"):
+                st.session_state.step = "REPORT"
+                st.rerun()
 
 # STEP: REPORT
 elif st.session_state.step == "REPORT":
@@ -95,33 +127,21 @@ elif st.session_state.step == "REPORT":
     with st.spinner("Synthesizing Executive Dashboard..."):
         full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
         
-        # We ask the AI to provide a JSON summary first for the tiles, then the full report
         summary_prompt = f"""
         Analyze this business idea: {st.session_state.user_idea}
         Data: {full_context}
-        
-        Provide a JSON object with these exact keys: 
-        "capex" (string, e.g. '$200k'), 
-        "opex" (string, e.g. '$15k/mo'), 
-        "breakeven" (string, e.g. '18 Mos'), 
-        "viability" (string 0-100, e.g. '85%'), 
-        "risk" (string, e.g. 'Medium')
+        Provide a JSON object with these exact keys: "capex", "opex", "breakeven", "viability", "risk"
         """
         summary_res = client.models.generate_content(model=MODEL_ID, contents=summary_prompt)
-        
-        # Clean the JSON string from AI response
         json_str = summary_res.text.replace('```json', '').replace('```', '').strip()
         try:
             metrics = json.loads(json_str)
         except:
             metrics = {"capex": "N/A", "opex": "N/A", "breakeven": "N/A", "viability": "N/A", "risk": "N/A"}
 
-    # 1. EXECUTIVE TILES (The Dashboard)
-    q_count = len(st.session_state.answers)
-    acc_score = int((q_count / 20) * 100)
-
+    # EXECUTIVE DASHBOARD
     t1, t2, t3, t4, t5, t6 = st.columns(6)
-    with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{acc_score}%</div></div>", unsafe_allow_html=True)
+    with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{int((len(st.session_state.answers)/20)*100)}%</div></div>", unsafe_allow_html=True)
     with t2: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. CAPEX</div><div class='metric-value'>{metrics.get('capex')}</div></div>", unsafe_allow_html=True)
     with t3: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. OPEX</div><div class='metric-value'>{metrics.get('opex')}</div></div>", unsafe_allow_html=True)
     with t4: st.markdown(f"<div class='metric-card'><div class='metric-label'>Breakeven</div><div class='metric-value'>{metrics.get('breakeven')}</div></div>", unsafe_allow_html=True)
@@ -130,7 +150,7 @@ elif st.session_state.step == "REPORT":
 
     st.write("---")
     
-    # 2. FINANCIAL CHART
+    # FINANCIAL CHART
     st.subheader("📈 Projected Growth Trajectory")
     chart_data = pd.DataFrame({
         "Month": [0, 6, 12, 18, 24],
@@ -139,19 +159,19 @@ elif st.session_state.step == "REPORT":
     }).set_index("Month")
     st.line_chart(chart_data)
 
-    # 3. FULL REPORT
+    # FULL REPORT
     with st.spinner("Finalizing Full Report..."):
         report_prompt = f"Generate a detailed Strategic Synthesis for: {st.session_state.user_idea}. Data: {full_context}. Sections: The Story, Requirements, Cost Model, Bull/Bear Scenarios, Accuracy Gaps."
         report_res = client.models.generate_content(model=MODEL_ID, contents=report_prompt)
         st.markdown(report_res.text)
 
-    # 4. EXPORTS
+    # EXPORTS
     c1, c2 = st.columns(2)
     with c1: st.download_button("📩 Download Report", report_res.text, file_name="Venture_Report.txt")
     with c2:
         qa_log = "\n".join([f"Q: {q}\nA: {a}\n---" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-        st.download_button("📄 Download Annexure (Q&A)", qa_log, file_name="Session_Log.txt")
+        st.download_button("📄 Download Annexure", qa_log, file_name="Session_Log.txt")
 
     if st.button("New Scan"):
         st.session_state.clear()
-        st.rerun()
+        st
