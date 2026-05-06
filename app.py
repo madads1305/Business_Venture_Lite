@@ -33,7 +33,7 @@ st.markdown("""
         background: white; padding: 15px; border-radius: 12px; 
         box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #2563eb;
     }
-    .metric-value { font-size: 1.2rem; font-weight: bold; color: #1e3a8a; }
+    .metric-value { font-size: 1.1rem; font-weight: bold; color: #1e3a8a; }
     .metric-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; }
     .question-box { background: white; padding: 30px; border-radius: 20px; border-left: 8px solid #2563eb; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
     </style>
@@ -49,7 +49,7 @@ with st.sidebar:
         st.rerun()
 
 st.markdown("<h1 class='main-header'>🧠 Venture Architect AI</h1>", unsafe_allow_html=True)
-st.caption("Strategic Planning Agent v1.9 | Business Intelligence Engine")
+st.caption("Strategic Planning Agent v1.9.1 | Business Intelligence Engine")
 
 # STEP: START
 if st.session_state.step == "START":
@@ -70,43 +70,24 @@ elif st.session_state.step == "ASKING":
         with st.spinner("Prioritizing core business drivers..."):
             try:
                 history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-                
-                phase_instruction = ""
-                if current_idx < 7:
-                    phase_instruction = "PHASE: CORE DISCOVERY. Focus ONLY on: Target Customer, Primary Revenue Stream, and Big Ticket Costs. Do not ask 'Why' or for validation."
-                else:
-                    phase_instruction = "PHASE: FINE-TUNING. Focus on: Operational scale, Risks, Marketing, or Team requirements."
+                phase_instruction = "PHASE: CORE DISCOVERY. Focus ONLY on: Target Customer, Primary Revenue Stream, and Big Ticket Costs." if current_idx < 7 else "PHASE: FINE-TUNING. Focus on: Operational scale, Risks, or Marketing."
 
                 prompt = f"""
                 You are a Strategic Business Architect. Idea: {st.session_state.user_idea}.
                 {phase_instruction}
                 HISTORY: {history}
-                
-                RULES:
-                1. Ask ONE simple, short question to build a financial model.
-                2. MUST end in a question mark (?). 
-                3. Use plain English (10th-grade level). 
-                4. DO NOT ask 'How do you know' or 'Why'. Assume the user's premise is true.
-                5. Do NOT repeat topics.
+                RULES: 1. Ask ONE simple, short question. 2. MUST end in a ?. 3. Use 10th-grade English. 4. DO NOT ask 'Why' or 'How do you know'. Assume the premise is true.
                 """
                 response = client.models.generate_content(model=MODEL_ID, contents=prompt)
-                st.session_state.questions.append(response.text if response.text else "What is your main way to make money?")
+                st.session_state.questions.append(response.text if response.text else "How will you find your first customer?")
                 st.rerun()
             except Exception:
                 st.error("Connection flickered. Please click Retry.")
                 if st.button("Retry"): st.rerun()
                 st.stop()
 
-    # UI Display
-    st.markdown(f"""
-        <div class='question-box'>
-            <small style='color:#2563eb; font-weight:bold;'>STRATEGIC INQUIRY {current_idx + 1}</small>
-            <p style='font-size:1.4em; margin-top:10px;'>{st.session_state.questions[current_idx]}</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    st.write("") 
-    user_ans = st.text_input("Your Answer:", key=f"ans_{current_idx}", placeholder="Keep it simple and direct...")
+    st.markdown(f"<div class='question-box'><small style='color:#2563eb; font-weight:bold;'>STRATEGIC INQUIRY {current_idx + 1}</small><p style='font-size:1.4em; margin-top:10px;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
+    user_ans = st.text_input("Your Answer:", key=f"ans_{current_idx}", placeholder="Keep it simple...")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -115,12 +96,10 @@ elif st.session_state.step == "ASKING":
                 st.session_state.answers.append(user_ans)
                 if len(st.session_state.answers) >= 20: st.session_state.step = "REPORT"
                 st.rerun()
-            else:
-                st.warning("Please type a response to continue the scan.")
-    
+            else: st.warning("Please type a response.")
     with c2:
         if current_idx >= 7:
-            if st.button("🚀 Fast-Track: Generate Initial Model"):
+            if st.button("🚀 Fast-Track: Generate Model"):
                 st.session_state.step = "REPORT"
                 st.rerun()
 
@@ -129,29 +108,24 @@ elif st.session_state.step == "REPORT":
     st.warning("⚠️ **DISCLAIMER:** This indicative model is based solely on user inputs. [cite: 124]")
     
     # 1. GENERATE DASHBOARD DATA
-   # --- FORCED ESTIMATION LOGIC ---
-with st.spinner("Calculating Indicative Metrics..."):
-    full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-    
-    # We now tell the AI: "DO NOT say 'Not estimated'. Give a range."
-    summary_prompt = f"""
-    Analyze: {st.session_state.user_idea}. 
-    Data: {full_context}. 
-    
-    TASK: Provide a JSON object. You MUST provide a best-guess estimate for every key. 
-    DO NOT use phrases like 'Not estimated' or 'Unknown'.
-    
-    VALUES MUST BE 1-3 WORDS:
-    "capex": (e.g., "$100k - $150k")
-    "opex": (e.g., "$5k - $8k/mo")
-    "breakeven": (e.g., "12-18 Mos")
-    "viability": (e.g., "Moderate")
-    "risk": (e.g., "Market/Policy")
-    """
-    
-    # ... [Keep your existing json.loads and cleaning logic here] ...
+    with st.spinner("Calculating Indicative Metrics..."):
+        full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
+        summary_prompt = f"""
+        Analyze: {st.session_state.user_idea}. Data: {full_context}. 
+        TASK: Provide a JSON object. YOU MUST PROVIDE A BEST-GUESS ESTIMATE. DO NOT say 'Not estimated'.
+        VALUES MUST BE 1-3 WORDS:
+        "capex": (e.g., "$100k"), "opex": (e.g., "$15k/mo"), "breakeven": (e.g., "18 Mos"), "viability": (e.g., "High - 85%"), "risk": (e.g., "Market")
+        """
+        try:
+            summary_res = client.models.generate_content(model=MODEL_ID, contents=summary_prompt)
+            json_str = summary_res.text.replace('```json', '').replace('```', '').strip()
+            metrics = json.loads(json_str)
+            for key in metrics:
+                if len(str(metrics[key])) > 25: metrics[key] = str(metrics[key])[:22] + "..."
+        except:
+            metrics = {"capex": "N/A", "opex": "N/A", "breakeven": "N/A", "viability": "N/A", "risk": "N/A"}
 
-    # 2. DISPLAY DASHBOARD TILES
+    # 2. DISPLAY DASHBOARD (FIXED NAMEERROR)
     t1, t2, t3, t4, t5, t6 = st.columns(6)
     with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{int((len(st.session_state.answers)/20)*100)}%</div></div>", unsafe_allow_html=True)
     with t2: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. CAPEX</div><div class='metric-value'>{metrics.get('capex')}</div></div>", unsafe_allow_html=True)
@@ -162,22 +136,12 @@ with st.spinner("Calculating Indicative Metrics..."):
 
     st.write("---")
     
-    # 3. THE BUSINESS STORY & MODEL
+    # 3. REPORT SYNTHESIS [cite: 81, 124, 175, 221]
     with st.spinner("Synthesizing Final Report..."):
-        report_prompt = f"""
-        Generate a 'Business Plan Lite' for {st.session_state.user_idea}.
-        Use the following inputs: {full_context}
-        
-        STRUCTURE:
-        1. THE VISION: A summary of the business story. [cite: 81]
-        2. OPERATIONAL REQUIREMENTS: What is needed to launch? [cite: 91]
-        3. FINANCIAL MODEL: CAPEX/OPEX breakdown. [cite: 124, 175]
-        4. BULL vs BEAR: Best/Worst case scenarios. [cite: 221]
-        5. ACCURACY GAPS: What is missing for a 100% accurate plan? 
-        """
+        report_prompt = f"Generate a 'Business Plan Lite' for {st.session_state.user_idea}. Data: {full_context}. Sections: Vision, Operational Requirements, Financial Model, Bull/Bear, Accuracy Gaps."
         response = client.models.generate_content(model=MODEL_ID, contents=report_prompt)
         st.markdown(response.text)
-        st.download_button("📩 Download Professional Report", response.text, file_name="Venture_Report.txt")
+        st.download_button("📩 Download Report", response.text, file_name="Venture_Report.txt")
 
     if st.button("Start New Architectural Scan"):
         st.session_state.clear()
