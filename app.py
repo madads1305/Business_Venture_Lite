@@ -141,16 +141,34 @@ elif st.session_state.step == "REPORT":
         except:
             metrics = {"capex": "N/A", "opex": "N/A", "breakeven": "N/A", "viability": "N/A", "risk": "N/A"}
 
-    # EXECUTIVE DASHBOARD [cite: 125, 178]
-    t1, t2, t3, t4, t5, t6 = st.columns(6)
-    with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{int((len(st.session_state.answers)/20)*100)}%</div></div>", unsafe_allow_html=True)
-    with t2: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. CAPEX</div><div class='metric-value'>{metrics.get('capex')}</div></div>", unsafe_allow_html=True)
-    with t3: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. OPEX</div><div class='metric-value'>{metrics.get('opex')}</div></div>", unsafe_allow_html=True)
-    with t4: st.markdown(f"<div class='metric-card'><div class='metric-label'>Breakeven</div><div class='metric-value'>{metrics.get('breakeven')}</div></div>", unsafe_allow_html=True)
-    with t5: st.markdown(f"<div class='metric-card'><div class='metric-label'>Viability</div><div class='metric-value'>{metrics.get('viability')}</div></div>", unsafe_allow_html=True)
-    with t6: st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Level</div><div class='metric-value'>{metrics.get('risk')}</div></div>", unsafe_allow_html=True)
-
-    st.write("---")
+   # --- REFINED DASHBOARD LOGIC ---
+with st.spinner("Calculating Indicative Metrics..."):
+    full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
+    
+    # We add 'MUST NOT EXCEED 3 WORDS' to the prompt
+    summary_prompt = f"""
+    Analyze: {st.session_state.user_idea}. 
+    Data: {full_context}. 
+    
+    Provide a JSON object with these keys. VALUES MUST BE 1-3 WORDS MAX:
+    "capex": (e.g., "$150k - $200k")
+    "opex": (e.g., "$10k/mo")
+    "breakeven": (e.g., "14 Months")
+    "viability": (e.g., "High - 85%")
+    "risk": (e.g., "Medium")
+    """
+    
+    summary_res = client.models.generate_content(model=MODEL_ID, contents=summary_prompt)
+    json_str = summary_res.text.replace('```json', '').replace('```', '').strip()
+    
+    try:
+        metrics = json.loads(json_str)
+        # Final safety check: if the AI still sends a paragraph, we truncate it
+        for key in metrics:
+            if len(str(metrics[key])) > 20:
+                metrics[key] = str(metrics[key])[:17] + "..."
+    except:
+        metrics = {"capex": "N/A", "opex": "N/A", "breakeven": "N/A", "viability": "N/A", "risk": "N/A"}
     
     # 2. THE BUSINESS STORY & MODEL [cite: 81, 91]
     with st.spinner("Synthesizing Final Report..."):
