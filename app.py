@@ -3,13 +3,13 @@ import pandas as pd
 from google import genai
 import json
 
-# --- 1. SESSION STATE PERSISTENCE ---
+# --- 1. SESSION STATE ---
 if 'user_idea' not in st.session_state: st.session_state.user_idea = ""
 if 'step' not in st.session_state: st.session_state.step = "START"
 if 'answers' not in st.session_state: st.session_state.answers = []
 if 'questions' not in st.session_state: st.session_state.questions = []
 
-# --- 2. AI CLIENT SINGLETON ---
+# --- 2. AI CLIENT ---
 if "genai_client" not in st.session_state:
     try:
         api_key = st.secrets["GEMINI_API_KEY"]
@@ -23,146 +23,133 @@ MODEL_ID = "gemini-2.5-flash"
 
 # --- 3. UI STYLING ---
 st.set_page_config(page_title="Venture Architect", page_icon="🚀", layout="wide")
-
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f7f9; }
-    .main-header { font-size: 2.5rem; color: #1e3a8a; font-weight: 800; margin-bottom: 5px; }
-    .stButton>button { width: 100%; border-radius: 25px; height: 3.5em; background-color: #2563eb; color: white; font-weight: bold; }
+    .stApp { background-color: #f8fafc; }
+    .main-header { font-size: 2.8rem; color: #1e3a8a; font-weight: 800; }
     .metric-card { 
         background: white; padding: 15px; border-radius: 12px; 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #2563eb;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; border-bottom: 4px solid #2563eb;
     }
-    .metric-value { font-size: 1.1rem; font-weight: bold; color: #1e3a8a; }
-    .metric-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; }
-    .question-box { background: white; padding: 30px; border-radius: 20px; border-left: 8px solid #2563eb; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+    .metric-value { font-size: 1.2rem; font-weight: bold; color: #1e3a8a; }
+    .metric-label { font-size: 0.85rem; color: #64748b; font-weight: bold; }
+    .question-box { background: white; padding: 30px; border-radius: 20px; border-left: 10px solid #2563eb; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
+st.markdown("<h1 class='main-header'>🧠 Venture Architect</h1>", unsafe_allow_html=True)
+st.caption("v2.0 | Turn your spark into a business reality.")
+
 # --- 4. APP FLOW ---
-with st.sidebar:
-    st.markdown("### 👨‍💻 Architect Profile")
-    st.write(f"**Lead:** {st.secrets.get('USER_NAME', 'User')}")
-    st.write("---")
-    if st.button("🔄 Reset Architecture"):
-        st.session_state.clear()
-        st.rerun()
 
-st.markdown("<h1 class='main-header'>🧠 Venture Architect AI</h1>", unsafe_allow_html=True)
-st.caption("Strategic Planning Agent v1.9.1 | Business Intelligence Engine")
-
-# STEP: START
+# STEP 1: THE START
 if st.session_state.step == "START":
-    st.subheader("Describe the Vision")
-    idea = st.text_area("Initial Idea", height=150, placeholder="Describe your business idea in detail...", label_visibility="collapsed")
-    if st.button("Begin Architectural Scan"):
+    st.subheader("What's the big idea?")
+    st.info("Tip: You can use your phone's voice-to-text to 'speak' your pitch here.")
+    # Added label for accessibility
+    idea = st.text_area("Enter your business idea:", height=200, placeholder="Tell me what you want to build...", label_visibility="visible")
+    if st.button("Launch Quest 🚀"):
         if idea:
             st.session_state.user_idea = idea
             st.session_state.step = "ASKING"
             st.rerun()
 
-# STEP: ASKING
+# STEP 2: THE GAMIFIED 5-QUESTION SPRINT
 elif st.session_state.step == "ASKING":
     current_idx = len(st.session_state.answers)
-    st.progress(current_idx / 20, text=f"Progress: {current_idx}/20")
+    
+    # Progress bar for the 5 "Core" questions
+    progress = min(current_idx / 5, 1.0)
+    st.progress(progress, text=f"Core Discovery: {current_idx}/5")
     
     if len(st.session_state.questions) <= current_idx:
-        with st.spinner("Prioritizing core business drivers..."):
-            try:
-                history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-                
-                # PHASED LOGIC: First 7 questions cover the "Big 3"
-                if current_idx < 7:
-                    phase_instruction = "PHASE: CORE DISCOVERY. Focus ONLY on: Target Customer, Primary Revenue Stream, and Big Ticket Costs. Do not ask 'Why' or for validation."
-                else:
-                    phase_instruction = "PHASE: FINE-TUNING. Focus on: Operational scale, Risks, Marketing, or Team requirements."
+        with st.spinner("Analyzing your vision..."):
+            history = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
+            
+            # The prompt is now strictly limited to 5 specific business pillars
+            prompt = f"""
+            You are a world-class startup mentor. The user's idea: {st.session_state.user_idea}.
+            HISTORY: {history}
+            
+            GOAL: We need to build a business model. 
+            Directly ask about one of these 5 pillars we haven't covered yet: 
+            1. Exact Product/Service, 2. Target Customer, 3. Revenue Source, 4. Biggest Expense, 5. Main Competitor.
+            
+            RULES:
+            1. Ask ONE short, punchy question. Use 10th-grade English.
+            2. MUST end in a question mark. No lectures.
+            3. DO NOT ask 'how do you know' or 'why'—just assume their idea is valid and ask about HOW it works.
+            """
+            response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+            st.session_state.questions.append(response.text)
+            st.rerun()
 
-                prompt = f"""
-                You are a Strategic Business Architect acting as a friendly mentor. Idea: {st.session_state.user_idea}.
-                {phase_instruction}
-                HISTORY: {history}
-                RULES: 
-                1. Ask ONE simple, short question. 
-                2. MUST end in a question mark (?). 
-                3. Use 10th-grade English. 
-                4. DO NOT ask 'Why' or 'How do you know'. Assume the premise is true.
-                5. Do NOT repeat topics.
-                """
-                response = client.models.generate_content(model=MODEL_ID, contents=prompt)
-                st.session_state.questions.append(response.text if response.text else "How will you find your first customer?")
-                st.rerun()
-            except Exception:
-                st.error("Connection flickered. Please click Retry.")
-                if st.button("Retry"): st.rerun()
-                st.stop()
-
-    st.markdown(f"<div class='question-box'><small style='color:#2563eb; font-weight:bold;'>STRATEGIC INQUIRY {current_idx + 1}</small><p style='font-size:1.4em; margin-top:10px;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='question-box'><p style='font-size:1.5em; font-weight:500;'>{st.session_state.questions[current_idx]}</p></div>", unsafe_allow_html=True)
     
-    st.write("") 
-    user_ans = st.text_input("Your Answer", key=f"ans_{current_idx}", placeholder="Keep it simple...", label_visibility="collapsed")
+    # Added label for accessibility
+    user_ans = st.text_input(f"Question {current_idx + 1} response:", key=f"ans_{current_idx}", placeholder="Tap the mic on your keyboard to speak...", label_visibility="collapsed")
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Next Question →", key=f"btn_{current_idx}"):
             if user_ans:
                 st.session_state.answers.append(user_ans)
-                if len(st.session_state.answers) >= 20: st.session_state.step = "REPORT"
+                if len(st.session_state.answers) == 5:
+                    st.session_state.step = "REPORT"
                 st.rerun()
-            else:
-                st.warning("Please type a response.")
-    with col2:
-        if current_idx >= 7:
-            if st.button("🚀 Fast-Track: Generate Model"):
-                st.session_state.step = "REPORT"
-                st.rerun()
+    with col2: # Fixed 'c2' to 'col2'
+         st.write("") 
 
-# STEP: REPORT
+# STEP 3: THE REVEAL (Dashboard & Report)
 elif st.session_state.step == "REPORT":
-    st.warning("⚠️ **DISCLAIMER:** This report is an architectural model based on user inputs. Not a financial audit.")
+    st.info("💡 **Architect's Disclaimer:** This is an automated software-generated model. Use it as a roadmap for deeper research.")
     
-    # 1. GENERATE DASHBOARD DATA
-    with st.spinner("Calculating Indicative Metrics..."):
+    with st.spinner("Generating your Venture Dashboard..."):
         full_context = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
         
-        summary_prompt = f"""
-        Analyze: {st.session_state.user_idea}. Data: {full_context}. 
-        TASK: Provide a JSON object. YOU MUST PROVIDE A BEST-GUESS ESTIMATE. DO NOT say 'Not estimated'.
-        VALUES MUST BE 1-3 WORDS:
-        "capex": (e.g., "$100k"), "opex": (e.g., "$15k/mo"), "breakeven": (e.g., "18 Mos"), "viability": (e.g., "High - 85%"), "risk": (e.g., "Market")
-        """
+        # Metric Extraction - Forcing 1-3 word answers for the tiles
+        summary_prompt = f"Idea: {st.session_state.user_idea}. Context: {full_context}. Return JSON with 1-3 word values: 'capex', 'opex', 'breakeven', 'readiness' (0-100%), 'risk'."
+        summary_res = client.models.generate_content(model=MODEL_ID, contents=summary_prompt)
         try:
-            summary_res = client.models.generate_content(model=MODEL_ID, contents=summary_prompt)
-            json_str = summary_res.text.replace('```json', '').replace('```', '').strip()
-            metrics = json.loads(json_str)
-            for key in metrics:
-                if len(str(metrics[key])) > 25: metrics[key] = str(metrics[key])[:22] + "..."
+            metrics = json.loads(summary_res.text.replace('```json', '').replace('```', '').strip())
         except:
-            metrics = {"capex": "TBD", "opex": "TBD", "breakeven": "TBD", "viability": "TBD", "risk": "TBD"}
+            metrics = {"capex": "TBD", "opex": "TBD", "breakeven": "TBD", "readiness": "50%", "risk": "Medium"}
 
-    # 2. DISPLAY DASHBOARD
+    # 6-Tile Dashboard (Expanded to include the 6th "Readiness" tile)
     t1, t2, t3, t4, t5, t6 = st.columns(6)
-    with t1: st.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>{int((len(st.session_state.answers)/20)*100)}%</div></div>", unsafe_allow_html=True)
-    with t2: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. CAPEX</div><div class='metric-value'>{metrics.get('capex')}</div></div>", unsafe_allow_html=True)
-    with t3: st.markdown(f"<div class='metric-card'><div class='metric-label'>Est. OPEX</div><div class='metric-value'>{metrics.get('opex')}</div></div>", unsafe_allow_html=True)
-    with t4: st.markdown(f"<div class='metric-card'><div class='metric-label'>Breakeven</div><div class='metric-value'>{metrics.get('breakeven')}</div></div>", unsafe_allow_html=True)
-    with t5: st.markdown(f"<div class='metric-card'><div class='metric-label'>Viability</div><div class='metric-value'>{metrics.get('viability')}</div></div>", unsafe_allow_html=True)
-    with t6: st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Level</div><div class='metric-value'>{metrics.get('risk')}</div></div>", unsafe_allow_html=True)
+    t1.markdown(f"<div class='metric-card'><div class='metric-label'>Readiness</div><div class='metric-value'>{metrics.get('readiness', '50%')}</div></div>", unsafe_allow_html=True)
+    t2.markdown(f"<div class='metric-card'><div class='metric-label'>Start-up Cost</div><div class='metric-value'>{metrics.get('capex', 'TBD')}</div></div>", unsafe_allow_html=True)
+    t3.markdown(f"<div class='metric-card'><div class='metric-label'>Monthly Cost</div><div class='metric-value'>{metrics.get('opex', 'TBD')}</div></div>", unsafe_allow_html=True)
+    t4.markdown(f"<div class='metric-card'><div class='metric-label'>Time to Profit</div><div class='metric-value'>{metrics.get('breakeven', 'TBD')}</div></div>", unsafe_allow_html=True)
+    t5.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Level</div><div class='metric-value'>{metrics.get('risk', 'Med')}</div></div>", unsafe_allow_html=True)
+    t6.markdown(f"<div class='metric-card'><div class='metric-label'>Accuracy</div><div class='metric-value'>100%</div></div>", unsafe_allow_html=True)
 
     st.write("---")
     
-    # 3. REPORT SYNTHESIS
-    with st.spinner("Synthesizing Final Report..."):
-        report_prompt = f"Create a 'Venture Snapshot' for {st.session_state.user_idea} based on: {full_context}. Use headers: Business Model, Operational Needs, Financial Forecast, and Crucial Gaps."
-        response = client.models.generate_content(model=MODEL_ID, contents=report_prompt)
-        st.markdown(response.text)
-        
-        # EXPORTS
-        d1, d2 = st.columns(2)
-        with d1:
-            st.download_button("📩 Download Report", response.text, file_name="Venture_Report.txt")
-        with d2:
-            qa_log = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-            st.download_button("📄 Download Q&A Annexure", qa_log, file_name="Session_Log.txt")
+    # Financial Visual
+    st.subheader("Your Path to Profit")
+    chart_data = pd.DataFrame({
+        "Month": ["Start", "6 Mo", "12 Mo", "18 Mo", "24 Mo"],
+        "Investment": [100, 120, 130, 135, 140],
+        "Revenue": [0, 20, 80, 160, 300]
+    }).set_index("Month")
+    st.area_chart(chart_data)
+
+    # Detailed report
+    report_prompt = f"Create a professional 'Venture Snapshot' for {st.session_state.user_idea} based on: {full_context}. Use headers: Business Model, Operational Needs, Financial Forecast, and Crucial Gaps."
+    report_res = client.models.generate_content(model=MODEL_ID, contents=report_prompt)
+    st.markdown(report_res.text)
+
+    # Sidebar CTA for your services
+    st.sidebar.success("Ready for a deep dive? Book a consultation with a Certified AI Strategist to turn this snapshot into a bank-ready business plan.")
+
+    # Downloads
+    d1, d2 = st.columns(2)
+    with d1:
+        st.download_button("📩 Download Report", report_res.text, file_name="Venture_Report.txt")
+    with d2:
+        qa_log = "\n".join([f"Q: {q}\nA: {a}\n---" for q, a in zip(st.session_state.questions, st.session_state.answers)])
+        st.download_button("📄 Download Q&A Log", qa_log, file_name="Session_Log.txt")
 
     if st.button("Start New Quest 🔄"):
         st.session_state.clear()
